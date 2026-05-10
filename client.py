@@ -143,72 +143,146 @@ class FTPClient:
         except Exception as e:
             print(f"✗ Error: {str(e)}")
     
+    # ==================== HELPER ====================
+
+    def _select_server_file(self):
+        """List files on server and ask user to select one. Returns filename or None."""
+        response = self.send_command({'command': 'list_files'})
+        if response['status'] != 'success':
+            print(f"✗ Could not get file list: {response['message']}")
+            return None
+        files = response.get('files', [])
+        if not files:
+            print("✗ No files on server")
+            return None
+        print("Files on server:")
+        for i, f in enumerate(files, 1):
+            print(f"  {i}. {f}")
+        choice = input("Select file number: ").strip()
+        try:
+            index = int(choice) - 1
+            if 0 <= index < len(files):
+                return files[index]
+            else:
+                print("✗ Invalid choice")
+                return None
+        except ValueError:
+            print("✗ Invalid input")
+            return None
+
     # ==================== COMMANDS TO IMPLEMENT ====================
-    
+
     def rename_file(self):
         """STUDENT TASK: Rename a file on server"""
         print("\n✏️  RENAME FILE (Server)")
         print("-" * 40)
-        
-        command = {'command': 'rename_file'}
+
+        old_name = input("Enter current filename: ").strip()
+        if not old_name:
+            print("✗ Invalid filename")
+            return
+        new_name = input("Enter new filename: ").strip()
+        if not new_name:
+            print("✗ Invalid filename")
+            return
+
+        command = {'command': 'rename_file', 'old_name': old_name, 'new_name': new_name}
         response = self.send_command(command)
-        
+
         if response['status'] == 'error':
-            print(f" {response['message']}")
+            print(f"✗ {response['message']}")
         else:
             print(f"✓ {response['message']}")
-    
+
     def read_file(self):
         """STUDENT TASK: Read file content from server"""
         print("\n📖 READ FILE (Server)")
         print("-" * 40)
-        
-        command = {'command': 'read_file'}
+
+        filename = self._select_server_file()
+        if not filename:
+            return
+
+        command = {'command': 'read_file', 'filename': filename}
         response = self.send_command(command)
-        
+
         if response['status'] == 'error':
-            print(f" {response['message']}")
+            print(f"✗ {response['message']}")
         else:
-            print(f"✓ {response['message']}")
-    
+            print(f"\n--- Content of '{filename}' ---")
+            print(response.get('content', ''))
+            print("--- End of file ---")
+
     def download(self):
         """STUDENT TASK: Download file from server to local"""
         print("\n📥 DOWNLOAD FILE")
         print("-" * 40)
-        
-        command = {'command': 'download'}
+
+        filename = self._select_server_file()
+        if not filename:
+            return
+
+        command = {'command': 'download', 'filename': filename}
         response = self.send_command(command)
-        
+
         if response['status'] == 'error':
-            print(f" {response['message']}")
+            print(f"✗ {response['message']}")
         else:
-            print(f"✓ {response['message']}")
-    
+            content = response.get('content', '')
+            local_path = os.path.join(LOCAL_FILES_DIR, filename)
+            with open(local_path, 'w') as f:
+                f.write(content)
+            print(f"✓ File '{filename}' saved to {LOCAL_FILES_DIR}/")
+
     def edit_file(self):
         """STUDENT TASK: Edit file on server"""
         print("\n🛠️  EDIT FILE (Server)")
         print("-" * 40)
-        
-        command = {'command': 'edit_file'}
+
+        filename = self._select_server_file()
+        if not filename:
+            return
+
+        print(f"Enter new content for '{filename}' (press Enter on empty line to finish):")
+        lines = []
+        while True:
+            line = input()
+            if line == '':
+                break
+            lines.append(line)
+        new_content = '\n'.join(lines)
+
+        command = {'command': 'edit_file', 'filename': filename, 'content': new_content}
         response = self.send_command(command)
-        
+
         if response['status'] == 'error':
-            print(f" {response['message']}")
+            print(f"✗ {response['message']}")
         else:
             print(f"✓ {response['message']}")
-    
+
     def see_file_operation_history(self):
         """STUDENT TASK: See file operation history on server"""
         print("\n📜 SEE FILE OPERATION HISTORY")
         print("-" * 40)
-        
-        command = {'command': 'see_file_operation_history'}
+
+        filename = self._select_server_file()
+        if not filename:
+            return
+
+        command = {'command': 'see_file_operation_history', 'filename': filename}
         response = self.send_command(command)
-        
+
         if response['status'] == 'error':
-            print(f" {response['message']}")
+            print(f"✗ {response['message']}")
         else:
-            print(f"✓ {response['message']}")
+            history = response.get('history', [])
+            if not history:
+                print(f"No history found for '{filename}'")
+            else:
+                print(f"\nHistory for '{filename}':")
+                for entry in history:
+                    details = f" ({entry['details']})" if entry['details'] else ''
+                    print(f"  [{entry['timestamp']}] {entry['operation']}{details}")
     
     def list_files(self):
         """List files on server"""
